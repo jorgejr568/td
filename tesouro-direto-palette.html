@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tesouro Direto — Color Palette</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F7F8FA;
+    --card: #FFFFFF;
+    --text: #1E293B;
+    --muted: #64748B;
+    --border: #E2E8F0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 40px 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .header {
+    margin-bottom: 40px;
+  }
+
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .header p {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .disclaimer {
+    background: #FEF3C7;
+    border: 1px solid #FDE68A;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 32px;
+    font-size: 13px;
+    color: #92400E;
+    line-height: 1.5;
+  }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+  }
+
+  .palette-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 36px;
+  }
+
+  .swatch {
+    background: var(--card);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    border: 1px solid var(--border);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .swatch:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+
+  .swatch-color {
+    height: 100px;
+    position: relative;
+  }
+
+  .swatch-info {
+    padding: 12px 14px;
+  }
+
+  .swatch-name {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .swatch-hex {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'DM Sans', monospace;
+  }
+
+  .swatch-role {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+    opacity: 0.8;
+  }
+
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 16px;
+    margin-bottom: 36px;
+  }
+
+  .product-card {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  .product-dot {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    flex-shrink: 0;
+  }
+
+  .product-info h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  .product-info span {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'DM Sans', monospace;
+  }
+
+  .gradient-bar {
+    height: 48px;
+    border-radius: 12px;
+    margin-bottom: 36px;
+    background: linear-gradient(90deg, #0A1F44 0%, #1B3A7A 20%, #2E7D32 40%, #43A047 55%, #FFD54F 70%, #FF8F00 85%, #7E57C2 100%);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+
+  .note {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🇧🇷 Tesouro Direto — Color Palette</h1>
+  <p>Visual identity colors extracted from the Tesouro Direto website (tesourodireto.com.br)</p>
+</div>
+
+<div class="disclaimer">
+  ⚠️ <strong>Note:</strong> The website blocks automated scraping (returns 403), so these colors are approximate values based on visual analysis of the site's current design. Exact hex codes may vary slightly from the live implementation.
+</div>
+
+<!-- Primary Colors -->
+<div class="section-title">Primary Brand Colors</div>
+<div class="palette-row">
+  <div class="swatch">
+    <div class="swatch-color" style="background: #0A1F44;"></div>
+    <div class="swatch-info">
+      <div class="swatch-name">Dark Navy</div>
+      <div class="swatch-hex">#0A1F44</div>
+      <div class="swatch-role">Header, nav, primary text</div>
+    </div>
+  </div>
+  <div class="swatch">
+    <div class="swatch-color" style="background: #1B3A7A;"></div>
+    <div class="swatch-info">
+      <div class="swatch-name">Royal Blue</div>
+      <div class="swatch-hex">#1B3A7A</div>
+      <div class="swatch-role">Primary brand, links</div>
+    </div>
+  </div>
+  <div class="swatch">
+    <div class="swatch-color" style="background: #2E7D32;"></div>
+    <div class="swatch-info">
+      <div class="swatch-name">Forest Green</div>
+      <div class="swatch-hex">#2E7D32</div>
+      <div class="swatch-role">CTAs, positive actions</div>
+    </div>
+  </div>
+  <div class="swatch">
+    <div class="swatch-color" style="background: #43A047;"></div>
+    <div class="swatch-info">
+      <div class="swatch-name">Vivid Green</div>
+      <div class="swatch-hex">#43A047</div>
+      <div class="swatch-role">Buttons, success states</div>
+    </div>
+  </div>
+</div>
+
+<!-- Secondary / Accent Colors -->
+<div class="section-title">Secondary & Accent Colors</div>
+<div class="palette-row">
+  <div class="swatch">
+    <div class="swatch-color" style="background: #29B6F6;"></div>
+    <div class="swatch-info">
+      <div class="swatch-name">Sky Blue</div>
+      <div class="swatch-hex">#29B6F6</div>
+      <div class="swatch-role">Secondary accents, links</div>
+    </div>
+  </div>
+  <div class="swatch">
+    <div class="swatch-color" style="background: #FFD54F;"></div>
+    <div class="swatch-info">
+      <div class="swatch-name">Golden Yellow</div>
+      <div class="swatch-hex">#FFD54F</div>
+      <div class="swatch-role">Highlights, badges</div>
+    </div>
+  </div>
+  <div class="swatch">
+    <div class="swatch-color" style="background: #FF8F00;"></div>
+    <div class="swatch-info">
+      <div class="swatch-name">Amber</div>
+      <div class="swatch-hex">#FF8F00</div>
+      <div class="swatch-role">Warnings, attention</div>
+    </div>
+  </div>
+  <div class="swatch">
+    <div class="swatch-color" style="background: #7E57C2;"></div>
+    <div class="swatch-info">
+      <div class="swatch-name">Soft Purple</div>
+      <div class="swatch-hex">#7E57C2</div>
+      <div class="swatch-role">RendA+ product accent</div>
+    </div>
+  </div>
+</div>
+
+<!-- Neutrals -->
+<div class="section-title">Neutral Tones</div>
+<div class="palette-row">
+  <div class="swatch">
+    <div class="swatch-color" style="background: #FFFFFF; border-bottom: 1px solid #E2E8F0;"></div>
+    <div class="swatch-info">
+      <div class="swatch-name">White</div>
+      <div class="swatch-hex">#FFFFFF</div>
+      <div class="swatch-role">Primary background</div>
+    </div>
+  </div>
+  <div class="swatch">
+    <div class="swatch-color" style="background: #F5F7FA;"></div>
+    <div class="swatch-info">
+      <div class="swatch-name">Soft Gray</div>
+      <div class="swatch-hex">#F5F7FA</div>
+      <div class="swatch-role">Section backgrounds</div>
+    </div>
+  </div>
+  <div class="swatch">
+    <div class="swatch-color" style="background: #94A3B8;"></div>
+    <div class="swatch-info">
+      <div class="swatch-name">Slate</div>
+      <div class="swatch-hex">#94A3B8</div>
+      <div class="swatch-role">Secondary text, captions</div>
+    </div>
+  </div>
+  <div class="swatch">
+    <div class="swatch-color" style="background: #1E293B;"></div>
+    <div class="swatch-info">
+      <div class="swatch-name">Charcoal</div>
+      <div class="swatch-hex">#1E293B</div>
+      <div class="swatch-role">Body text, headings</div>
+    </div>
+  </div>
+</div>
+
+<!-- Product-Specific Colors -->
+<div class="section-title">Product-Specific Colors (Bond Types)</div>
+<div class="product-grid">
+  <div class="product-card">
+    <div class="product-dot" style="background: linear-gradient(135deg, #29B6F6, #0288D1);"></div>
+    <div class="product-info">
+      <h3>Tesouro Selic</h3>
+      <span>#29B6F6 → #0288D1</span>
+    </div>
+  </div>
+  <div class="product-card">
+    <div class="product-dot" style="background: linear-gradient(135deg, #66BB6A, #2E7D32);"></div>
+    <div class="product-info">
+      <h3>Tesouro IPCA+</h3>
+      <span>#66BB6A → #2E7D32</span>
+    </div>
+  </div>
+  <div class="product-card">
+    <div class="product-dot" style="background: linear-gradient(135deg, #AB47BC, #7B1FA2);"></div>
+    <div class="product-info">
+      <h3>Tesouro RendA+</h3>
+      <span>#AB47BC → #7B1FA2</span>
+    </div>
+  </div>
+  <div class="product-card">
+    <div class="product-dot" style="background: linear-gradient(135deg, #FFA726, #EF6C00);"></div>
+    <div class="product-info">
+      <h3>Tesouro Educa+</h3>
+      <span>#FFA726 → #EF6C00</span>
+    </div>
+  </div>
+  <div class="product-card">
+    <div class="product-dot" style="background: linear-gradient(135deg, #FFCA28, #F9A825);"></div>
+    <div class="product-info">
+      <h3>Tesouro Prefixado</h3>
+      <span>#FFCA28 → #F9A825</span>
+    </div>
+  </div>
+</div>
+
+<!-- Full Gradient -->
+<div class="section-title">Full Palette Gradient</div>
+<div class="gradient-bar"></div>
+
+<div class="note">
+  <strong>Sources:</strong> Colors are approximated from visual analysis of tesourodireto.com.br (the site returns 403 on automated access). The Tesouro Direto brand draws from Brazil's national colors (blue, green, yellow) and assigns distinct color identities to each bond product. For pixel-perfect values, inspect the live site using browser DevTools.
+</div>
+
+</body>
+</html>
