@@ -194,6 +194,37 @@ def renda_mais_conversion_date(year):
     return date(year, 1, 15)
 
 
+def monthly_aporte_stats(purchases):
+    """Group purchases by calendar month and compute avg/median monthly aporte (BRL)."""
+    if not purchases:
+        return {"months": 0, "avg": 0.0, "median": 0.0, "total": 0.0,
+                "first_month": None, "last_month": None}
+
+    by_month = {}
+    for p in purchases:
+        key = (p["date"].year, p["date"].month)
+        by_month[key] = by_month.get(key, 0.0) + p["invested"]
+
+    keys = sorted(by_month.keys())
+    values = sorted(by_month.values())
+    n = len(values)
+    total = sum(values)
+    avg = total / n
+    if n % 2 == 1:
+        median = values[n // 2]
+    else:
+        median = (values[n // 2 - 1] + values[n // 2]) / 2
+
+    return {
+        "months": n,
+        "avg": avg,
+        "median": median,
+        "total": total,
+        "first_month": keys[0],
+        "last_month": keys[-1],
+    }
+
+
 def fmt(value):
     """Format a number as Brazilian currency string."""
     return f"R$ {value:>14,.2f}"
