@@ -460,7 +460,7 @@ def pct(value):
     return f"{value:>7.2f}%"
 
 
-def write_xlsx(bonds, ipca_rate, today, holidays):
+def write_xlsx(bonds, ipca_rate, today, holidays, aporte_stats, ipca_history_stats, projections):
     """Generate a styled output.xlsx with Detail and Summary sheets."""
     wb = openpyxl.Workbook()
 
@@ -805,6 +805,142 @@ def write_xlsx(bonds, ipca_rate, today, holidays):
             fill_range(ws2, row, 1, 5, gold)
         row += 1
 
+    # ================================================================
+    # Estatísticas / Projeções (Renda+)
+    # ================================================================
+    row += 2
+
+    # --- Aporte stats ---
+    ws2.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+    c = ws2.cell(row, 1, "ESTATÍSTICAS DE APORTES (por mês-calendário)")
+    c.font = Font(bold=True, size=12, color="FFFFFF", name="Aptos")
+    c.fill = navy
+    c.alignment = center
+    fill_range(ws2, row, 2, 5, navy)
+    row += 1
+
+    aporte_lines = [
+        ("Meses com aporte", aporte_stats["months"], None),
+        ("Total aportado", aporte_stats["total"], CURR),
+        ("Média mensal", aporte_stats["avg"], CURR),
+        ("Mediana mensal", aporte_stats["median"], CURR),
+    ]
+    for label, value, nf in aporte_lines:
+        ws2.merge_cells(start_row=row, start_column=1, end_row=row, end_column=2)
+        c = ws2.cell(row, 1, label)
+        c.font = bold
+        c.alignment = right
+        c = ws2.cell(row, 3, value)
+        c.font = bold
+        c.alignment = right
+        if nf:
+            c.number_format = nf
+        row += 1
+    row += 1
+
+    # --- IPCA history stats ---
+    ws2.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+    c = ws2.cell(row, 1, "PROJEÇÃO IPCA (últimos 10 anos, BCB SGS 433)")
+    c.font = Font(bold=True, size=12, color="FFFFFF", name="Aptos")
+    c.fill = navy
+    c.alignment = center
+    fill_range(ws2, row, 2, 5, navy)
+    row += 1
+
+    for label, value in [("IPCA anual médio", ipca_history_stats["avg"]),
+                         ("IPCA anual mediano", ipca_history_stats["median"])]:
+        ws2.merge_cells(start_row=row, start_column=1, end_row=row, end_column=2)
+        c = ws2.cell(row, 1, label)
+        c.font = bold
+        c.alignment = right
+        c = ws2.cell(row, 3, value)
+        c.font = bold
+        c.number_format = "0.00%"
+        c.alignment = right
+        row += 1
+    row += 1
+
+    # --- Per-bond Renda+ projections ---
+    ws2.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+    c = ws2.cell(row, 1, "PROJEÇÃO RENDA+ (por título)")
+    c.font = Font(bold=True, size=12, color="FFFFFF", name="Aptos")
+    c.fill = navy
+    c.alignment = center
+    fill_range(ws2, row, 2, 5, navy)
+    row += 2
+
+    scenario_labels = {
+        "avg_aporte_avg_ipca": "Aporte médio + IPCA médio",
+        "avg_aporte_median_ipca": "Aporte médio + IPCA mediano",
+        "median_aporte_avg_ipca": "Aporte mediano + IPCA médio",
+        "median_aporte_median_ipca": "Aporte mediano + IPCA mediano",
+    }
+
+    for bond in bonds:
+        proj = projections.get(bond["name"])
+        if proj is None or not proj["is_renda_mais"]:
+            continue
+
+        ws2.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+        title = (
+            f"{bond['name']}  |  Conversão: {proj['conversion_date'].strftime('%d/%m/%Y')}  "
+            f"|  Vencimento: {proj['maturity_date'].strftime('%d/%m/%Y')}"
+        )
+        c = ws2.cell(row, 1, title)
+        c.font = white_bold
+        c.fill = purple_dark
+        c.alignment = left
+        fill_range(ws2, row, 2, 5, purple_dark)
+        row += 1
+
+        for ci, h in enumerate(
+            ["Cenário", "V_c (real, hoje)", "V_c (nominal)", "Mensal real", "Mensal nominal (1ª)"], 1
+        ):
+            c = ws2.cell(row, ci, h)
+            c.font = hdr_font
+            c.fill = purple_light
+            c.border = thin
+            c.alignment = right if ci > 1 else left
+        row += 1
+
+        for idx, key in enumerate(
+            ["avg_aporte_avg_ipca", "avg_aporte_median_ipca",
+             "median_aporte_avg_ipca", "median_aporte_median_ipca"]
+        ):
+            scen = proj["scenarios"][key]
+            stripe = soft_gray if idx % 2 == 1 else None
+            vals = [
+                scenario_labels[key],
+                scen["real_value_at_conversion"],
+                scen["nominal_value_at_conversion"],
+                scen["payout"]["real_monthly_net"],
+                scen["payout"]["nominal_first_net"],
+            ]
+            fmts = [None, CURR, CURR, CURR, CURR]
+            for ci, (v, nf) in enumerate(zip(vals, fmts), 1):
+                c = ws2.cell(row, ci, v)
+                c.font = normal
+                c.border = thin
+                c.alignment = right if ci > 1 else left
+                if nf:
+                    c.number_format = nf
+                if stripe:
+                    c.fill = stripe
+            row += 1
+
+        # Footer note: last-payment nominal for the avg/avg scenario
+        avg_avg = proj["scenarios"]["avg_aporte_avg_ipca"]["payout"]
+        ws2.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+        c = ws2.cell(
+            row, 1,
+            f"Mensal nominal líq. na 240ª parcela (avg+avg): "
+            f"R$ {avg_avg['nominal_last_net']:,.2f}  •  "
+            f"IR descontado: 15% sobre o ganho.",
+        )
+        c.font = muted
+        c.alignment = left
+        row += 2
+
     # Save
     output_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "output.xlsx"
@@ -857,6 +993,30 @@ def main():
     except Exception as e:
         print(f"Error fetching holidays: {e}", file=sys.stderr)
         sys.exit(1)
+
+    # --- Aporte stats (per calendar month, across all bonds) ---
+    all_purchases = [p for b in bonds for p in b["purchases"]]
+    aporte_stats = monthly_aporte_stats(all_purchases)
+
+    # --- Historical IPCA (last 10 calendar years) ---
+    try:
+        ipca_history = fetch_monthly_ipca_history(years_back=10, today=today)
+    except Exception as e:
+        print(f"Warning: failed to fetch historical IPCA: {e}", file=sys.stderr)
+        ipca_history = []
+    ipca_history_stats = yearly_ipca_stats(ipca_history)
+
+    # --- Per-bond Renda+ projections ---
+    projections = {}
+    for b in bonds:
+        projections[b["name"]] = build_bond_projection(
+            bond=b,
+            today=today,
+            aporte_avg=aporte_stats["avg"],
+            aporte_median=aporte_stats["median"],
+            ipca_avg=ipca_history_stats["avg"],
+            ipca_median=ipca_history_stats["median"],
+        )
 
     # Grand totals
     grand_invested = 0.0
@@ -976,7 +1136,10 @@ def main():
     print(f"  Gap (real net - mkt):    {fmt(gap)}  ({pct(gap / grand_mkt_net * 100)})")
     print()
 
-    write_xlsx(bonds, ipca_rate, today, holidays)
+    write_xlsx(bonds, ipca_rate, today, holidays,
+               aporte_stats=aporte_stats,
+               ipca_history_stats=ipca_history_stats,
+               projections=projections)
 
 
 if __name__ == "__main__":
