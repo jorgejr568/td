@@ -248,8 +248,6 @@ class TestBuildBondProjection:
         result = build_bond_projection(
             bond=bond,
             today=date(2025, 1, 15),
-            aporte_avg=200.0,
-            aporte_median=150.0,
             ipca_avg=0.05,
             ipca_median=0.04,
         )
@@ -261,14 +259,17 @@ class TestBuildBondProjection:
             "median_aporte_avg_ipca",
             "median_aporte_median_ipca",
         }
+        # aporte_stats now derived from this bond's own purchases:
+        # Jan 2024 -> R$50+R$100 = R$150; Mar 2024 -> R$200; avg=median=175.
+        assert "aporte_stats" in result
+        assert result["aporte_stats"]["avg"] == pytest.approx(175.0)
+        assert result["aporte_stats"]["median"] == pytest.approx(175.0)
+        assert result["aporte_stats"]["months"] == 2
         scen = result["scenarios"]["avg_aporte_avg_ipca"]
         # higher aporte and higher IPCA -> larger nominal first payment
         assert scen["real_value_at_conversion"] > 0
         assert scen["nominal_value_at_conversion"] >= scen["real_value_at_conversion"]
         assert scen["payout"]["n_months"] == 240
-        # Avg-aporte scenario must be > median-aporte scenario in real V_c.
-        assert (result["scenarios"]["avg_aporte_avg_ipca"]["real_value_at_conversion"]
-                > result["scenarios"]["median_aporte_avg_ipca"]["real_value_at_conversion"])
 
     def test_returns_none_for_non_renda_mais(self, sample_purchases):
         bond = {
@@ -279,7 +280,6 @@ class TestBuildBondProjection:
         }
         result = build_bond_projection(
             bond=bond, today=date(2025, 1, 15),
-            aporte_avg=200.0, aporte_median=150.0,
             ipca_avg=0.05, ipca_median=0.04,
         )
         assert result["is_renda_mais"] is False

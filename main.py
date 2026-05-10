@@ -392,19 +392,27 @@ def renda_mais_payout(
     }
 
 
-def build_bond_projection(bond, today, aporte_avg, aporte_median, ipca_avg, ipca_median):
+def build_bond_projection(bond, today, ipca_avg, ipca_median):
     """Compute four projection scenarios per Renda+ bond.
 
+    Aporte avg/median are derived from THIS bond's own purchase history, so
+    each bond's projections reflect its individual contribution cadence.
+
     Returns {'is_renda_mais', 'conversion_date', 'maturity_date', 'avg_spread',
+             'aporte_stats': {...},
              'scenarios': {scenario_key: {real_value_at_conversion,
                                           nominal_value_at_conversion,
                                           total_invested_through_conversion,
                                           payout: {...}}}}.
-    Non-Renda+ bonds return scenarios={}.
+    Non-Renda+ bonds return {'is_renda_mais': False, 'scenarios': {}}.
     """
     year = extract_renda_mais_year(bond["name"])
     if year is None:
         return {"is_renda_mais": False, "scenarios": {}}
+
+    bond_aporte = monthly_aporte_stats(bond["purchases"])
+    aporte_avg = bond_aporte["avg"]
+    aporte_median = bond_aporte["median"]
 
     conversion = renda_mais_conversion_date(year)
     maturity = bond["maturity"]
@@ -446,6 +454,7 @@ def build_bond_projection(bond, today, aporte_avg, aporte_median, ipca_avg, ipca
         "conversion_date": conversion,
         "maturity_date": maturity,
         "avg_spread": avg_spr,
+        "aporte_stats": bond_aporte,
         "scenarios": scenarios,
     }
 
@@ -893,6 +902,19 @@ def write_xlsx(bonds, ipca_rate, today, holidays, aporte_stats, ipca_history_sta
         fill_range(ws2, row, 2, 5, purple_dark)
         row += 1
 
+        # Per-bond aporte stats line
+        ap = proj["aporte_stats"]
+        ws2.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+        c = ws2.cell(
+            row, 1,
+            f"Aporte mensal deste título: média R$ {ap['avg']:,.2f}  •  "
+            f"mediana R$ {ap['median']:,.2f}  •  em {ap['months']} meses  •  "
+            f"total aportado R$ {ap['total']:,.2f}",
+        )
+        c.font = muted
+        c.alignment = left
+        row += 1
+
         for ci, h in enumerate(
             ["Cenário", "V_c (real, hoje)", "V_c (nominal)", "Mensal real", "Mensal nominal (1ª)"], 1
         ):
@@ -1012,8 +1034,6 @@ def main():
         projections[b["name"]] = build_bond_projection(
             bond=b,
             today=today,
-            aporte_avg=aporte_stats["avg"],
-            aporte_median=aporte_stats["median"],
             ipca_avg=ipca_history_stats["avg"],
             ipca_median=ipca_history_stats["median"],
         )
