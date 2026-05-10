@@ -469,6 +469,58 @@ def pct(value):
     return f"{value:>7.2f}%"
 
 
+def print_projections(aporte_stats, ipca_history_stats, projections, bonds):
+    """Print the new stats and projection sections to stdout (also captured to output.txt)."""
+    print()
+    print("=" * 100)
+    print("  APORTE STATS — PORTFOLIO (por mês-calendário)")
+    print("=" * 100)
+    print(f"  Meses com aporte:    {aporte_stats['months']}")
+    print(f"  Total aportado:      {fmt(aporte_stats['total'])}")
+    print(f"  Média mensal:        {fmt(aporte_stats['avg'])}")
+    print(f"  Mediana mensal:      {fmt(aporte_stats['median'])}")
+    print()
+    print(f"  IPCA anual médio (10y):    {ipca_history_stats['avg'] * 100:.2f}%")
+    print(f"  IPCA anual mediano (10y):  {ipca_history_stats['median'] * 100:.2f}%")
+    print()
+    print("=" * 100)
+    print("  RENDA+ PROJECTIONS")
+    print("=" * 100)
+    for bond in bonds:
+        proj = projections.get(bond["name"])
+        if proj is None or not proj["is_renda_mais"]:
+            continue
+        ap = proj["aporte_stats"]
+        print()
+        print(f"  {bond['name']}  |  Conversão: {proj['conversion_date'].strftime('%d/%m/%Y')}")
+        print(
+            f"  Aporte mensal deste título: média {fmt(ap['avg'])} • "
+            f"mediana {fmt(ap['median'])} • em {ap['months']} meses • "
+            f"total {fmt(ap['total'])}"
+        )
+        print(
+            f"  {'Cenário':<32} {'V_c real':>17} {'V_c nominal':>17} "
+            f"{'Mensal real':>17} {'Mensal 1ª':>17} {'Mensal 240ª':>17}"
+        )
+        print("  " + "-" * 122)
+        for key, label in [
+            ("avg_aporte_avg_ipca", "avg aporte + avg IPCA"),
+            ("avg_aporte_median_ipca", "avg aporte + median IPCA"),
+            ("median_aporte_avg_ipca", "median aporte + avg IPCA"),
+            ("median_aporte_median_ipca", "median aporte + median IPCA"),
+        ]:
+            s = proj["scenarios"][key]
+            p = s["payout"]
+            print(
+                f"  {label:<32} {fmt(s['real_value_at_conversion'])} "
+                f"{fmt(s['nominal_value_at_conversion'])} "
+                f"{fmt(p['real_monthly_net'])} "
+                f"{fmt(p['nominal_first_net'])} "
+                f"{fmt(p['nominal_last_net'])}"
+            )
+    print()
+
+
 def write_xlsx(bonds, ipca_rate, today, holidays, aporte_stats, ipca_history_stats, projections):
     """Generate a styled output.xlsx with Detail and Summary sheets."""
     wb = openpyxl.Workbook()
@@ -1155,6 +1207,8 @@ def main():
     )
     print(f"  Gap (real net - mkt):    {fmt(gap)}  ({pct(gap / grand_mkt_net * 100)})")
     print()
+
+    print_projections(aporte_stats, ipca_history_stats, projections, bonds)
 
     write_xlsx(bonds, ipca_rate, today, holidays,
                aporte_stats=aporte_stats,
