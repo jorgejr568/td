@@ -225,6 +225,63 @@ def monthly_aporte_stats(purchases):
     }
 
 
+BCB_SGS_IPCA_MONTHLY_URL = (
+    "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json"
+)
+
+
+def fetch_monthly_ipca_history(years_back, today=None):
+    """Fetch monthly IPCA % from BCB SGS series 433 for the last `years_back` calendar years.
+
+    Returns a list of (date, monthly_pct) tuples sorted ascending. monthly_pct is the
+    raw percentage (e.g., 0.42 means 0.42% — NOT 0.0042).
+    """
+    today = today or date.today()
+    start_year = today.year - years_back
+    url = (
+        f"{BCB_SGS_IPCA_MONTHLY_URL}"
+        f"&dataInicial=01/01/{start_year}&dataFinal=31/12/{today.year - 1}"
+    )
+    resp = requests.get(url, timeout=15)
+    resp.raise_for_status()
+    out = []
+    for entry in resp.json():
+        d = datetime.strptime(entry["data"], "%d/%m/%Y").date()
+        out.append((d, float(entry["valor"])))
+    out.sort(key=lambda t: t[0])
+    return out
+
+
+def compound_monthly_to_yearly(monthly_pcts):
+    """Compound a list of monthly IPCA percentages (e.g. 0.42 = 0.42%) into a yearly rate.
+
+    Returns a decimal (e.g. 0.05 means 5%).
+    """
+    factor = 1.0
+    for m in monthly_pcts:
+        factor *= 1.0 + m / 100.0
+    return factor - 1.0
+
+
+def yearly_ipca_stats(monthly_series):
+    """Aggregate (date, monthly_pct) tuples by calendar year, keep only complete years.
+
+    Returns {'years': [(year, yearly_decimal), ...], 'avg': float, 'median': float}.
+    """
+    by_year = {}
+    for d, m in monthly_series:
+        by_year.setdefault(d.year, []).append(m)
+    complete = [(y, compound_monthly_to_yearly(ms))
+                for y, ms in sorted(by_year.items()) if len(ms) == 12]
+    if not complete:
+        return {"avg": 0.0, "median": 0.0, "years": []}
+    rates = sorted(r for _, r in complete)
+    n = len(rates)
+    avg = sum(rates) / n
+    median = rates[n // 2] if n % 2 == 1 else (rates[n // 2 - 1] + rates[n // 2]) / 2
+    return {"avg": avg, "median": median, "years": complete}
+
+
 def fmt(value):
     """Format a number as Brazilian currency string."""
     return f"R$ {value:>14,.2f}"
