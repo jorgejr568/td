@@ -331,6 +331,67 @@ def project_real_value_at_conversion(
     return existing + future
 
 
+RENDA_MAIS_N_PAYOUT_MONTHS = 240
+RENDA_MAIS_PAYOUT_IR_RATE = 0.15  # always 15% in payout phase (>720d)
+
+
+def inflate_to_nominal(real_value, yearly_ipca, start, end):
+    """Inflate a real BRL value (in `start`-date reais) to nominal at `end`."""
+    years = (end - start).days / 365.25
+    if years <= 0:
+        return real_value
+    return real_value * (1 + yearly_ipca) ** years
+
+
+def renda_mais_payout(
+    real_value_at_conversion,
+    total_invested,
+    conversion_date,
+    maturity_date,
+    yearly_ipca_for_inflation,
+    today,
+):
+    """Compute the monthly payout during the 240-month Renda+ payout window.
+
+    Returns a dict with real (today's reais) and nominal (first/last payment) values,
+    gross and net of 15% IR on the gain portion. Cost basis is split evenly across
+    240 payments, so per-payment gain fraction = (V_c - cost) / V_c (in real terms).
+    """
+    n = RENDA_MAIS_N_PAYOUT_MONTHS
+    real_monthly_gross = real_value_at_conversion / n
+
+    gain = max(0.0, real_value_at_conversion - total_invested)
+    gain_fraction = gain / real_value_at_conversion if real_value_at_conversion > 0 else 0
+    real_monthly_ir = real_monthly_gross * gain_fraction * RENDA_MAIS_PAYOUT_IR_RATE
+    real_monthly_net = real_monthly_gross - real_monthly_ir
+
+    nominal_first_gross = inflate_to_nominal(
+        real_monthly_gross, yearly_ipca_for_inflation, today, conversion_date
+    )
+    nominal_first_net = inflate_to_nominal(
+        real_monthly_net, yearly_ipca_for_inflation, today, conversion_date
+    )
+    nominal_last_gross = inflate_to_nominal(
+        real_monthly_gross, yearly_ipca_for_inflation, today, maturity_date
+    )
+    nominal_last_net = inflate_to_nominal(
+        real_monthly_net, yearly_ipca_for_inflation, today, maturity_date
+    )
+
+    return {
+        "n_months": n,
+        "real_monthly_gross": real_monthly_gross,
+        "real_monthly_net": real_monthly_net,
+        "real_monthly_ir": real_monthly_ir,
+        "nominal_first_gross": nominal_first_gross,
+        "nominal_first_net": nominal_first_net,
+        "nominal_last_gross": nominal_last_gross,
+        "nominal_last_net": nominal_last_net,
+        "total_real_payouts_gross": real_monthly_gross * n,
+        "total_real_payouts_net": real_monthly_net * n,
+    }
+
+
 def fmt(value):
     """Format a number as Brazilian currency string."""
     return f"R$ {value:>14,.2f}"

@@ -179,3 +179,56 @@ class TestProjectRealValueAtConversion:
         i = (1.065) ** (1 / 12) - 1
         expected_diff = 500.0 * ((1 + i) ** n_months - 1) / i
         assert (result_with - result_no) == pytest.approx(expected_diff, rel=1e-3)
+
+
+from main import inflate_to_nominal, renda_mais_payout
+
+
+class TestInflateToNominal:
+    def test_inflates_real_value_by_yearly_ipca(self):
+        # 1000 real, 5% IPCA, 10 calendar years (with leap days).
+        start = date(2025, 1, 1)
+        end = date(2035, 1, 1)
+        years = (end - start).days / 365.25
+        expected = 1000.0 * (1.05 ** years)
+        nominal = inflate_to_nominal(real_value=1000.0, yearly_ipca=0.05,
+                                     start=start, end=end)
+        assert nominal == pytest.approx(expected, abs=1e-6)
+
+    def test_zero_years_is_identity(self):
+        d = date(2030, 6, 15)
+        assert inflate_to_nominal(1000.0, 0.05, d, d) == pytest.approx(1000.0)
+
+
+class TestRendaMaisPayout:
+    def test_240_months_split(self):
+        # 240,000 real -> 1000/mo real (ignoring IR).
+        result = renda_mais_payout(
+            real_value_at_conversion=240_000.0,
+            total_invested=120_000.0,
+            conversion_date=date(2035, 1, 15),
+            maturity_date=date(2054, 12, 15),
+            yearly_ipca_for_inflation=0.05,
+            today=date(2025, 1, 15),
+        )
+        assert result["n_months"] == 240
+        assert result["real_monthly_gross"] == pytest.approx(1000.0)
+        # Gain = (240k - 120k) / 240k = 0.5 of each payment is gain.
+        # IR = 0.5 * 1000 * 0.15 = 75/mo real.
+        assert result["real_monthly_net"] == pytest.approx(925.0)
+        # Nominal first payment: 1000 * 1.05^10 ≈ 1628.89 (with day-precision drift from leap days).
+        assert result["nominal_first_gross"] == pytest.approx(1628.89, abs=0.2)
+        # Nominal last payment: 1000 * 1.05^(years_to_maturity ≈ 29.91).
+        # 1.05^29.91 ≈ 4.292
+        assert result["nominal_last_gross"] == pytest.approx(1000 * 1.05 ** 29.91, rel=1e-2)
+
+    def test_no_gain_means_no_ir(self):
+        result = renda_mais_payout(
+            real_value_at_conversion=120_000.0,
+            total_invested=120_000.0,
+            conversion_date=date(2035, 1, 15),
+            maturity_date=date(2054, 12, 15),
+            yearly_ipca_for_inflation=0.04,
+            today=date(2025, 1, 15),
+        )
+        assert result["real_monthly_net"] == pytest.approx(result["real_monthly_gross"])
