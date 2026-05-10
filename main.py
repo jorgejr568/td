@@ -174,6 +174,26 @@ def calc_ir_on_real(invested, real_value, ir_rate):
     return gain * ir_rate
 
 
+# ============================================================
+# === Renda+ projections & stats =============================
+# ============================================================
+
+def extract_renda_mais_year(bond_name):
+    """Return the year in a Renda+ bond name (e.g. 'Aposentadoria Extra 2035' -> 2035).
+
+    Returns None if the name doesn't match a Renda+ pattern.
+    """
+    if "renda+" not in bond_name.lower():
+        return None
+    m = re.search(r"\b(20\d{2})\b", bond_name)
+    return int(m.group(1)) if m else None
+
+
+def renda_mais_conversion_date(year):
+    """Conversion date for a Renda+ bond ('data de conversão' = 15 January of the named year)."""
+    return date(year, 1, 15)
+
+
 def fmt(value):
     """Format a number as Brazilian currency string."""
     return f"R$ {value:>14,.2f}"
