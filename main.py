@@ -194,6 +194,17 @@ def renda_mais_conversion_date(year):
     return date(year, 1, 15)
 
 
+def short_renda_mais_label(bond_name):
+    """Return just the year (e.g. '2035') for a Renda+ bond name, or the full name if no year found."""
+    y = extract_renda_mais_year(bond_name)
+    return str(y) if y is not None else bond_name
+
+
+def short_phase_label(active_names):
+    """Render an active-bond tuple as a compact 'YYYY + YYYY' label."""
+    return " + ".join(short_renda_mais_label(n) for n in active_names)
+
+
 def monthly_aporte_stats(purchases):
     """Group purchases by calendar month and compute avg/median monthly aporte (BRL)."""
     if not purchases:
@@ -661,20 +672,20 @@ def print_life_phases(projections):
     ]
     # Header
     print(
-        f"  {'Período':<19} {'Meses':>6} {'Títulos ativos':<28} "
+        f"  {'Período':<19} {'Meses':>6} {'Títulos ativos':<22} "
         + " ".join(f"{label:>20}" for _, label in scenarios)
     )
-    print("  " + "-" * 124)
+    print("  " + "-" * 118)
 
     for ph in phases:
-        active_label = " + ".join(ph["active"])
+        active_label = short_phase_label(ph["active"])
         period = f"{ph['start'].strftime('%m/%Y')}–{ph['end'].strftime('%m/%Y')}"
         income = {
             key: monthly_income_by_phase([ph], projections, key)[0]["real_monthly_net"]
             for key, _ in scenarios
         }
         print(
-            f"  {period:<19} {ph['n_months']:>6} {active_label[:28]:<28} "
+            f"  {period:<19} {ph['n_months']:>6} {active_label:<22} "
             + " ".join(fmt(income[key]) for key, _ in scenarios)
         )
     print()
@@ -685,20 +696,20 @@ def print_life_phases(projections):
     print("=" * 130)
     print()
     print(
-        f"  {'Período':<19} {'Meses':>6} {'Títulos ativos':<28} "
+        f"  {'Período':<19} {'Meses':>6} {'Títulos ativos':<22} "
         f"{'Mensal nom. (início)':>22} {'Mensal nom. (fim)':>22}"
     )
-    print("  " + "-" * 124)
+    print("  " + "-" * 118)
 
     today = date.today()
     avg_income = monthly_income_by_phase(phases, projections, "avg_aporte_avg_ipca")
     for ph, inc in zip(phases, avg_income):
-        active_label = " + ".join(ph["active"])
+        active_label = short_phase_label(ph["active"])
         period = f"{ph['start'].strftime('%m/%Y')}–{ph['end'].strftime('%m/%Y')}"
         nominal_start = inflate_to_nominal(inc["real_monthly_net"], inc["ipca_yearly"], today, ph["start"])
         nominal_end = inflate_to_nominal(inc["real_monthly_net"], inc["ipca_yearly"], today, ph["end"])
         print(
-            f"  {period:<19} {ph['n_months']:>6} {active_label[:28]:<28} "
+            f"  {period:<19} {ph['n_months']:>6} {active_label:<22} "
             f"{fmt(nominal_start):>22} {fmt(nominal_end):>22}"
         )
     print()
@@ -1229,7 +1240,7 @@ def write_xlsx(bonds, ipca_rate, today, holidays, aporte_stats, ipca_history_sta
         for idx, ph in enumerate(phases):
             stripe = soft_gray if idx % 2 == 1 else None
             period = f"{ph['start'].strftime('%m/%Y')}–{ph['end'].strftime('%m/%Y')}"
-            active_label = " + ".join(ph["active"])
+            active_label = short_phase_label(ph["active"])
             vals = [period, active_label]
             for key in scenario_keys:
                 inc = monthly_income_by_phase([ph], projections, key)[0]
@@ -1279,7 +1290,7 @@ def write_xlsx(bonds, ipca_rate, today, holidays, aporte_stats, ipca_history_sta
         for idx, (ph, inc) in enumerate(zip(phases, avg_income)):
             stripe = soft_gray if idx % 2 == 1 else None
             period = f"{ph['start'].strftime('%m/%Y')}–{ph['end'].strftime('%m/%Y')}"
-            active_label = " + ".join(ph["active"])
+            active_label = short_phase_label(ph["active"])
             nominal_start = inflate_to_nominal(inc["real_monthly_net"], inc["ipca_yearly"], today, ph["start"])
             nominal_end = inflate_to_nominal(inc["real_monthly_net"], inc["ipca_yearly"], today, ph["end"])
             vals = [period, active_label, nominal_start, nominal_end]

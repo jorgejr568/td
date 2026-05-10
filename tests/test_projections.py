@@ -409,3 +409,22 @@ class TestMonthlyIncomeByPhase:
         assert income[0]["real_monthly_net"] == pytest.approx(100.0)
         assert income[1]["real_monthly_net"] == pytest.approx(150.0)
         assert income[2]["real_monthly_net"] == pytest.approx(50.0)
+
+
+from main import short_phase_label, short_renda_mais_label
+
+
+class TestShortLabels:
+    def test_short_renda_mais_label_extracts_year(self):
+        assert short_renda_mais_label("Tesouro Renda+ Aposentadoria Extra 2035") == "2035"
+        assert short_renda_mais_label("Tesouro Renda+ Aposentadoria Extra 2060") == "2060"
+
+    def test_short_renda_mais_label_fallback(self):
+        assert short_renda_mais_label("Tesouro IPCA+ 2035") == "Tesouro IPCA+ 2035"
+
+    def test_short_phase_label_joins_with_plus(self):
+        names = (
+            "Tesouro Renda+ Aposentadoria Extra 2035",
+            "Tesouro Renda+ Aposentadoria Extra 2040",
+        )
+        assert short_phase_label(names) == "2035 + 2040"
