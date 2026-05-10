@@ -100,3 +100,82 @@ class TestYearlyIpcaStats:
         series = [(date(2024, m, 15), 0.5) for m in range(1, 7)]
         stats = yearly_ipca_stats(series)
         assert stats == {"avg": 0.0, "median": 0.0, "years": []}
+
+
+from main import (
+    average_spread,
+    project_real_value_at_conversion,
+    future_aporte_future_value,
+)
+
+
+class TestAverageSpread:
+    def test_invested_weighted_average(self, sample_purchases):
+        # 50@6% + 100@6% + 200@7% -> (50*0.06 + 100*0.06 + 200*0.07) / 350
+        avg = average_spread(sample_purchases)
+        assert avg == pytest.approx((50*0.06 + 100*0.06 + 200*0.07) / 350.0, abs=1e-6)
+
+    def test_empty_returns_zero(self):
+        assert average_spread([]) == 0.0
+
+
+class TestFutureAporteFutureValue:
+    def test_zero_months_returns_zero(self):
+        assert future_aporte_future_value(monthly=1000.0, yearly_rate=0.06,
+                                          n_months=0) == 0.0
+
+    def test_zero_monthly_returns_zero(self):
+        assert future_aporte_future_value(monthly=0.0, yearly_rate=0.06,
+                                          n_months=120) == 0.0
+
+    def test_annuity_future_value_formula(self):
+        # Standard ordinary annuity FV: M * ((1+i)^n - 1) / i, with i = monthly rate.
+        monthly = 1000.0
+        yearly = 0.06
+        n = 120
+        i = (1 + yearly) ** (1 / 12) - 1
+        expected = monthly * ((1 + i) ** n - 1) / i
+        assert future_aporte_future_value(monthly, yearly, n) == pytest.approx(expected)
+
+    def test_zero_rate_falls_back_to_simple_sum(self):
+        assert future_aporte_future_value(monthly=500.0, yearly_rate=0.0,
+                                          n_months=24) == pytest.approx(12000.0)
+
+
+class TestProjectRealValueAtConversion:
+    def test_existing_only_no_future(self, sample_purchases):
+        # Conversion 5 years after the latest purchase (2024-03-10 -> 2029-03-10).
+        # Each grows at its spread for years_to_conv from purchase.
+        conversion = date(2029, 3, 10)
+        result = project_real_value_at_conversion(
+            purchases=sample_purchases,
+            conversion_date=conversion,
+            today=date(2026, 5, 9),
+            future_monthly_aporte=0.0,
+            avg_future_spread=0.065,
+        )
+        # Manual: P1 grows 5+~2/12 yr at 6%, P2 same, P3 grows 5yr at 7%.
+        from datetime import timedelta
+        expected = 0.0
+        for p in sample_purchases:
+            yrs = (conversion - p["date"]).days / 365.25
+            expected += p["invested"] * (1 + p["spread"]) ** yrs
+        assert result == pytest.approx(expected, rel=1e-3)
+
+    def test_with_future_aportes(self, sample_purchases):
+        conversion = date(2029, 3, 10)
+        today = date(2026, 5, 9)
+        result_no = project_real_value_at_conversion(
+            sample_purchases, conversion, today,
+            future_monthly_aporte=0.0, avg_future_spread=0.065,
+        )
+        result_with = project_real_value_at_conversion(
+            sample_purchases, conversion, today,
+            future_monthly_aporte=500.0, avg_future_spread=0.065,
+        )
+        assert result_with > result_no
+        # Difference equals annuity FV of 500/mo at 6.5% over n_months from today to conversion.
+        n_months = (conversion.year - today.year) * 12 + (conversion.month - today.month)
+        i = (1.065) ** (1 / 12) - 1
+        expected_diff = 500.0 * ((1 + i) ** n_months - 1) / i
+        assert (result_with - result_no) == pytest.approx(expected_diff, rel=1e-3)

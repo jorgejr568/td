@@ -282,6 +282,55 @@ def yearly_ipca_stats(monthly_series):
     return {"avg": avg, "median": median, "years": complete}
 
 
+def average_spread(purchases):
+    """Invested-weighted average contracted spread across purchases."""
+    total_inv = sum(p["invested"] for p in purchases)
+    if total_inv == 0:
+        return 0.0
+    return sum(p["invested"] * p["spread"] for p in purchases) / total_inv
+
+
+def future_aporte_future_value(monthly, yearly_rate, n_months):
+    """FV of an ordinary monthly annuity at the given yearly compound rate.
+
+    monthly: BRL deposited at the end of each month.
+    yearly_rate: decimal yearly rate (e.g. 0.065).
+    n_months: number of monthly deposits.
+    """
+    if n_months <= 0 or monthly == 0.0:
+        return 0.0
+    if yearly_rate == 0.0:
+        return monthly * n_months
+    i = (1 + yearly_rate) ** (1 / 12) - 1
+    return monthly * ((1 + i) ** n_months - 1) / i
+
+
+def project_real_value_at_conversion(
+    purchases, conversion_date, today, future_monthly_aporte, avg_future_spread
+):
+    """Project the real (today's reais) accumulated value at the conversion date.
+
+    Each existing purchase grows at its own contracted spread from its purchase date
+    to the conversion date (calendar-year approximation, not DU/252 — the precision
+    of a 10–30y projection doesn't warrant the business-day count). Future aportes
+    accumulate via the standard ordinary-annuity FV formula at avg_future_spread,
+    starting from `today` until the conversion date.
+    """
+    existing = 0.0
+    for p in purchases:
+        years = (conversion_date - p["date"]).days / 365.25
+        if years < 0:
+            years = 0
+        existing += p["invested"] * (1 + p["spread"]) ** years
+
+    n_months = max(
+        0,
+        (conversion_date.year - today.year) * 12 + (conversion_date.month - today.month),
+    )
+    future = future_aporte_future_value(future_monthly_aporte, avg_future_spread, n_months)
+    return existing + future
+
+
 def fmt(value):
     """Format a number as Brazilian currency string."""
     return f"R$ {value:>14,.2f}"
