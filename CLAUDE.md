@@ -39,6 +39,20 @@ Both from [Brasil API](https://brasilapi.com.br):
 - `GET /api/taxas/v1` — current IPCA rate
 - `GET /api/feriados/v1/{year}` — national holidays (fetched for each year in the investment range)
 
+## Projection Model (Renda+ stats)
+
+The Resumo tab and console output include a stats / projection section computed in this order:
+
+1. **Aporte stats** — group all purchase rows by calendar month, sum invested per month, compute avg/median. Computed both portfolio-wide (across all bonds, shown at the top of the Resumo Estatísticas section) and **per-bond** (using only that bond's own purchases, shown inline next to that bond's projection block and used as the avg/median scenario inputs for that bond).
+2. **Historical IPCA** — fetch the last 10 calendar years of monthly IPCA from BCB SGS 433 (`bcdata.sgs.433`), compound monthly → yearly per year (`(1+m1)*…*(1+m12)-1`), then take avg/median across years.
+3. **Real value at conversion** — for each Renda+ bond (auto-detected by `Renda+` substring, conversion date = `15/01/{year}`):
+   - existing purchases grow at their own contracted spread from purchase date to conversion (calendar-year approximation);
+   - future aportes added via ordinary-annuity FV at the invested-weighted avg historical spread of THAT bond's purchases, sized at THAT bond's avg or median monthly aporte.
+4. **Nominal at conversion** — real value × `(1 + IPCA_avg_or_median)^years_to_conversion`.
+5. **Monthly payout** — Renda+ pays 240 monthly amortizations (1/240 of VNA each); in real terms ≈ `V_c / 240`. IR = 15% on the gain portion (gain fraction = `(V_c - total_invested) / V_c`). B3 fee assumed 0% (held to conversion, payment ≤ 6 minimum wages).
+
+Four scenarios are produced per bond: every combination of {avg, median} aporte × {avg, median} IPCA. Output goes to the Resumo tab of `output.xlsx`, the terminal, and `output.txt` (via the existing Tee shim).
+
 ## Report Format (reports/*.xlsx)
 
 Row 1: bond name prefixed with "EXTRATO ANALÍTICO - "
