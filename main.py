@@ -350,18 +350,31 @@ def renda_mais_payout(
     maturity_date,
     yearly_ipca_for_inflation,
     today,
+    payout_spread,
 ):
     """Compute the monthly payout during the 240-month Renda+ payout window.
 
+    The monthly payment is computed via the standard annuity PMT formula at the
+    bond's contracted real spread: real_monthly = V_c * i / (1 - (1+i)^-240).
+    This correctly accounts for the unamortized principal earning the spread
+    throughout the 240-month payout (equivalent to the official Renda+ mechanic
+    where par = price / Cotação_at_conversion, par/240 = real monthly payment).
+
     Returns a dict with real (today's reais) and nominal (first/last payment) values,
     gross and net of 15% IR on the gain portion. Cost basis is split evenly across
-    240 payments, so per-payment gain fraction = (V_c - cost) / V_c (in real terms).
+    the 240 payments; gain fraction = (total real cashflow − total_invested) / total real cashflow.
     """
     n = RENDA_MAIS_N_PAYOUT_MONTHS
-    real_monthly_gross = real_value_at_conversion / n
+    i_monthly = (1 + payout_spread) ** (1 / 12) - 1
+    if i_monthly > 0:
+        pmt_factor = i_monthly / (1 - (1 + i_monthly) ** -n)
+    else:
+        pmt_factor = 1.0 / n  # degenerate zero-rate fallback
+    real_monthly_gross = real_value_at_conversion * pmt_factor
 
-    gain = max(0.0, real_value_at_conversion - total_invested)
-    gain_fraction = gain / real_value_at_conversion if real_value_at_conversion > 0 else 0
+    total_real_cashflow = real_monthly_gross * n
+    gain = max(0.0, total_real_cashflow - total_invested)
+    gain_fraction = gain / total_real_cashflow if total_real_cashflow > 0 else 0
     real_monthly_ir = real_monthly_gross * gain_fraction * RENDA_MAIS_PAYOUT_IR_RATE
     real_monthly_net = real_monthly_gross - real_monthly_ir
 
@@ -448,6 +461,7 @@ def build_bond_projection(bond, today, ipca_avg, ipca_median):
                 maturity_date=maturity,
                 yearly_ipca_for_inflation=ip_value,
                 today=today,
+                payout_spread=avg_spr,
             )
             scenarios[key] = {
                 "real_value_at_conversion": real_vc,

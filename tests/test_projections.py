@@ -202,7 +202,7 @@ class TestInflateToNominal:
 
 class TestRendaMaisPayout:
     def test_240_months_split(self):
-        # 240,000 real -> 1000/mo real (ignoring IR).
+        # 240,000 real at spread 7% -> PMT formula, not /240.
         result = renda_mais_payout(
             real_value_at_conversion=240_000.0,
             total_invested=120_000.0,
@@ -210,28 +210,41 @@ class TestRendaMaisPayout:
             maturity_date=date(2054, 12, 15),
             yearly_ipca_for_inflation=0.05,
             today=date(2025, 1, 15),
+            payout_spread=0.07,
         )
         assert result["n_months"] == 240
-        assert result["real_monthly_gross"] == pytest.approx(1000.0)
-        # Gain = (240k - 120k) / 240k = 0.5 of each payment is gain.
-        # IR = 0.5 * 1000 * 0.15 = 75/mo real.
-        assert result["real_monthly_net"] == pytest.approx(925.0)
-        # Nominal first payment: 1000 * 1.05^10 ≈ 1628.89 (with day-precision drift from leap days).
-        assert result["nominal_first_gross"] == pytest.approx(1628.89, abs=0.2)
-        # Nominal last payment: 1000 * 1.05^(years_to_maturity ≈ 29.91).
-        # 1.05^29.91 ≈ 4.292
-        assert result["nominal_last_gross"] == pytest.approx(1000 * 1.05 ** 29.91, rel=1e-2)
+        # Annuity PMT at 7% real over 240 months: V_c × pmt_factor
+        i = (1.07) ** (1 / 12) - 1
+        pmt_factor = i / (1 - (1 + i) ** -240)
+        expected_gross = 240_000.0 * pmt_factor
+        assert result["real_monthly_gross"] == pytest.approx(expected_gross, rel=1e-6)
+        # IR on gain portion of total real cashflow
+        total_cashflow = expected_gross * 240
+        gain_frac = (total_cashflow - 120_000.0) / total_cashflow
+        expected_ir = expected_gross * gain_frac * 0.15
+        expected_net = expected_gross - expected_ir
+        assert result["real_monthly_net"] == pytest.approx(expected_net, rel=1e-6)
+        # Nominal first parcel: real_monthly_net inflated to conversion
+        years_to_conv = (date(2035, 1, 15) - date(2025, 1, 15)).days / 365.25
+        expected_first_net = expected_net * (1.05 ** years_to_conv)
+        assert result["nominal_first_net"] == pytest.approx(expected_first_net, rel=1e-6)
+        # Nominal last parcel: inflated to maturity
+        years_to_mat = (date(2054, 12, 15) - date(2025, 1, 15)).days / 365.25
+        expected_last_net = expected_net * (1.05 ** years_to_mat)
+        assert result["nominal_last_net"] == pytest.approx(expected_last_net, rel=1e-6)
 
     def test_no_gain_means_no_ir(self):
         result = renda_mais_payout(
             real_value_at_conversion=120_000.0,
-            total_invested=120_000.0,
+            total_invested=999_999.0,  # >> total real cashflow, so no gain
             conversion_date=date(2035, 1, 15),
             maturity_date=date(2054, 12, 15),
             yearly_ipca_for_inflation=0.04,
             today=date(2025, 1, 15),
+            payout_spread=0.06,
         )
         assert result["real_monthly_net"] == pytest.approx(result["real_monthly_gross"])
+        assert result["real_monthly_ir"] == pytest.approx(0.0)
 
 
 from main import build_bond_projection
