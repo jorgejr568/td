@@ -308,3 +308,104 @@ class TestBuildBondProjection:
         )
         assert result["is_renda_mais"] is False
         assert result["scenarios"] == {}
+
+
+from main import compute_life_phases, monthly_income_by_phase
+
+
+class TestComputeLifePhases:
+    def _proj(self, conversion, maturity):
+        return {
+            "is_renda_mais": True,
+            "conversion_date": conversion,
+            "maturity_date": maturity,
+            "scenarios": {},
+        }
+
+    def test_single_bond_one_phase(self):
+        projections = {"A": self._proj(date(2035, 1, 15), date(2054, 12, 15))}
+        phases = compute_life_phases(projections)
+        assert len(phases) == 1
+        assert phases[0]["active"] == ("A",)
+        assert phases[0]["n_months"] == 240
+        assert phases[0]["start"] == date(2035, 1, 15)
+        assert phases[0]["end"] == date(2054, 12, 15)
+
+    def test_two_bonds_three_phases(self):
+        # A: 2035–2054, B: 2040–2059
+        projections = {
+            "A": self._proj(date(2035, 1, 15), date(2054, 12, 15)),
+            "B": self._proj(date(2040, 1, 15), date(2059, 12, 15)),
+        }
+        phases = compute_life_phases(projections)
+        assert len(phases) == 3
+        assert phases[0]["active"] == ("A",)
+        assert phases[0]["n_months"] == 60  # 2035–2039
+        assert phases[1]["active"] == ("A", "B")
+        assert phases[1]["n_months"] == 180  # 2040–2054
+        assert phases[2]["active"] == ("B",)
+        assert phases[2]["n_months"] == 60  # 2055–2059
+
+    def test_four_bond_user_timeline(self):
+        # Mirror the user's actual bonds.
+        projections = {
+            "2035": self._proj(date(2035, 1, 15), date(2054, 12, 15)),
+            "2040": self._proj(date(2040, 1, 15), date(2059, 12, 15)),
+            "2050": self._proj(date(2050, 1, 15), date(2069, 12, 15)),
+            "2060": self._proj(date(2060, 1, 15), date(2079, 12, 15)),
+        }
+        phases = compute_life_phases(projections)
+        assert len(phases) == 6
+        expected_actives = [
+            ("2035",),
+            ("2035", "2040"),
+            ("2035", "2040", "2050"),
+            ("2040", "2050"),
+            ("2050", "2060"),
+            ("2060",),
+        ]
+        expected_months = [60, 120, 60, 60, 120, 120]
+        for ph, expected_active, expected_n in zip(phases, expected_actives, expected_months):
+            assert ph["active"] == expected_active
+            assert ph["n_months"] == expected_n
+        # totals
+        assert sum(ph["n_months"] for ph in phases) == 540
+
+    def test_no_renda_mais_returns_empty(self):
+        projections = {"X": {"is_renda_mais": False, "scenarios": {}}}
+        phases = compute_life_phases(projections)
+        assert phases == []
+
+
+class TestMonthlyIncomeByPhase:
+    def test_sums_real_monthly_across_active_bonds(self):
+        projections = {
+            "A": {
+                "is_renda_mais": True,
+                "conversion_date": date(2035, 1, 15),
+                "maturity_date": date(2054, 12, 15),
+                "scenarios": {
+                    "avg_aporte_avg_ipca": {
+                        "payout": {"real_monthly_net": 100.0, "real_monthly_gross": 120.0},
+                        "ipca_yearly": 0.05,
+                    },
+                },
+            },
+            "B": {
+                "is_renda_mais": True,
+                "conversion_date": date(2040, 1, 15),
+                "maturity_date": date(2059, 12, 15),
+                "scenarios": {
+                    "avg_aporte_avg_ipca": {
+                        "payout": {"real_monthly_net": 50.0, "real_monthly_gross": 60.0},
+                        "ipca_yearly": 0.05,
+                    },
+                },
+            },
+        }
+        phases = compute_life_phases(projections)
+        income = monthly_income_by_phase(phases, projections, "avg_aporte_avg_ipca")
+        # phase 1 (A only): 100, phase 2 (A+B): 150, phase 3 (B only): 50
+        assert income[0]["real_monthly_net"] == pytest.approx(100.0)
+        assert income[1]["real_monthly_net"] == pytest.approx(150.0)
+        assert income[2]["real_monthly_net"] == pytest.approx(50.0)

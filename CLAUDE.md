@@ -53,6 +53,12 @@ The Resumo tab and console output include a stats / projection section computed 
 
 Six scenarios are produced per bond: {no, avg, median} aporte × {avg, median} IPCA. The "no aporte" rows show the baseline where you stop contributing today and just let the existing balance grow at each purchase's contracted spread. Output goes to the Resumo tab of `output.xlsx`, the terminal, and `output.txt` (via the existing Tee shim).
 
+## Life Phases (Fases da Vida)
+
+After the per-bond projections, the Resumo tab and console output show a "Fases da Vida" section that breaks the post-retirement timeline into discrete phases based on bond conversion/maturity dates. Each phase is a contiguous run of months during which the same subset of bonds is simultaneously paying. The section shows total monthly income per phase under the three aporte scenarios (no aporte / avg / median) in today's reais, plus a companion table with nominal monthly income (avg aporte + avg IPCA scenario) at the start and end of each phase.
+
+The algorithm: enumerate months from `min(conversion_date)` to `max(maturity_date)`, determine which bonds are paying each month, and group consecutive months with the same active set.
+
 ## Report Format (reports/*.xlsx)
 
 Row 1: bond name prefixed with "EXTRATO ANALÍTICO - "

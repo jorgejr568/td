@@ -482,6 +482,103 @@ def build_bond_projection(bond, today, ipca_avg, ipca_median):
     }
 
 
+def compute_life_phases(projections):
+    """Compute payout-phase timeline across all Renda+ bonds.
+
+    A phase is a contiguous run of months during which the same subset of bonds is paying.
+    Phase boundaries are bond conversion (start) and maturity (end) dates.
+
+    Returns: list of dicts, each:
+        {'start': date,        # 15th of first month of the phase
+         'end': date,          # 15th of last month of the phase
+         'n_months': int,      # number of monthly payments in the phase
+         'active': tuple[str]  # sorted tuple of bond names active during the phase}
+    Sorted chronologically; empty list if there are no Renda+ bonds.
+    """
+    renda = [(name, p) for name, p in projections.items() if p.get("is_renda_mais")]
+    if not renda:
+        return []
+
+    earliest = min(p["conversion_date"] for _, p in renda)
+    latest = max(p["maturity_date"] for _, p in renda)
+
+    def next_month(year, month):
+        return (year + 1, 1) if month == 12 else (year, month + 1)
+
+    def active_at(year, month):
+        d = date(year, month, 15)
+        return tuple(sorted(name for name, p in renda
+                            if p["conversion_date"] <= d <= p["maturity_date"]))
+
+    phases = []
+    cur_active = None
+    cur_start = None
+    cur_count = 0
+
+    y, m = earliest.year, earliest.month
+    end_y, end_m = latest.year, latest.month
+
+    while (y, m) <= (end_y, end_m):
+        a = active_at(y, m)
+        if a != cur_active:
+            if cur_active:
+                # close out the previous phase using the month just before (y, m)
+                prev_y, prev_m = (y, m - 1) if m > 1 else (y - 1, 12)
+                phases.append({
+                    "start": date(cur_start[0], cur_start[1], 15),
+                    "end": date(prev_y, prev_m, 15),
+                    "n_months": cur_count,
+                    "active": cur_active,
+                })
+            cur_active = a
+            cur_start = (y, m)
+            cur_count = 1
+        else:
+            cur_count += 1
+        y, m = next_month(y, m)
+
+    # close the final phase
+    if cur_active:
+        phases.append({
+            "start": date(cur_start[0], cur_start[1], 15),
+            "end": date(end_y, end_m, 15),
+            "n_months": cur_count,
+            "active": cur_active,
+        })
+
+    return phases
+
+
+def monthly_income_by_phase(phases, projections, scenario_key):
+    """For each phase, sum the real monthly payment across active bonds under a scenario.
+
+    scenario_key: one of the 6 keys (e.g. 'avg_aporte_avg_ipca', 'no_aporte_avg_ipca').
+    Returns: list parallel to `phases` of {'real_monthly_net', 'real_monthly_gross',
+                                            'ipca_yearly'} dicts.
+    """
+    result = []
+    for ph in phases:
+        real_net = 0.0
+        real_gross = 0.0
+        ipca = 0.0
+        for name in ph["active"]:
+            proj = projections.get(name)
+            if proj is None:
+                continue
+            scen = proj["scenarios"].get(scenario_key)
+            if scen is None:
+                continue
+            real_net += scen["payout"]["real_monthly_net"]
+            real_gross += scen["payout"]["real_monthly_gross"]
+            ipca = scen["ipca_yearly"]  # same IPCA across bonds in a scenario
+        result.append({
+            "real_monthly_net": real_net,
+            "real_monthly_gross": real_gross,
+            "ipca_yearly": ipca,
+        })
+    return result
+
+
 def fmt(value):
     """Format a number as Brazilian currency string."""
     return f"R$ {value:>14,.2f}"
@@ -543,6 +640,67 @@ def print_projections(aporte_stats, ipca_history_stats, projections, bonds):
                 f"{fmt(p['nominal_first_net'])} "
                 f"{fmt(p['nominal_last_net'])}"
             )
+    print()
+
+
+def print_life_phases(projections):
+    """Print a Life Phases / Fases da Vida table summarizing monthly income over time."""
+    phases = compute_life_phases(projections)
+    if not phases:
+        return
+
+    print("=" * 130)
+    print("  FASES DA VIDA — Renda mensal (real, em reais de hoje)")
+    print("=" * 130)
+    print()
+
+    scenarios = [
+        ("no_aporte_avg_ipca", "Sem aporte"),
+        ("avg_aporte_avg_ipca", "Aporte médio"),
+        ("median_aporte_avg_ipca", "Aporte mediano"),
+    ]
+    # Header
+    print(
+        f"  {'Período':<19} {'Meses':>6} {'Títulos ativos':<28} "
+        + " ".join(f"{label:>20}" for _, label in scenarios)
+    )
+    print("  " + "-" * 124)
+
+    for ph in phases:
+        active_label = " + ".join(ph["active"])
+        period = f"{ph['start'].strftime('%m/%Y')}–{ph['end'].strftime('%m/%Y')}"
+        income = {
+            key: monthly_income_by_phase([ph], projections, key)[0]["real_monthly_net"]
+            for key, _ in scenarios
+        }
+        print(
+            f"  {period:<19} {ph['n_months']:>6} {active_label[:28]:<28} "
+            + " ".join(fmt(income[key]) for key, _ in scenarios)
+        )
+    print()
+
+    # Headline nominal table (avg aporte + avg IPCA)
+    print("=" * 130)
+    print("  FASES DA VIDA — Nominal estimado (cenário: aporte médio + IPCA médio)")
+    print("=" * 130)
+    print()
+    print(
+        f"  {'Período':<19} {'Meses':>6} {'Títulos ativos':<28} "
+        f"{'Mensal nom. (início)':>22} {'Mensal nom. (fim)':>22}"
+    )
+    print("  " + "-" * 124)
+
+    today = date.today()
+    avg_income = monthly_income_by_phase(phases, projections, "avg_aporte_avg_ipca")
+    for ph, inc in zip(phases, avg_income):
+        active_label = " + ".join(ph["active"])
+        period = f"{ph['start'].strftime('%m/%Y')}–{ph['end'].strftime('%m/%Y')}"
+        nominal_start = inflate_to_nominal(inc["real_monthly_net"], inc["ipca_yearly"], today, ph["start"])
+        nominal_end = inflate_to_nominal(inc["real_monthly_net"], inc["ipca_yearly"], today, ph["end"])
+        print(
+            f"  {period:<19} {ph['n_months']:>6} {active_label[:28]:<28} "
+            f"{fmt(nominal_start):>22} {fmt(nominal_end):>22}"
+        )
     print()
 
 
@@ -1043,6 +1201,102 @@ def write_xlsx(bonds, ipca_rate, today, holidays, aporte_stats, ipca_history_sta
         c.alignment = left
         row += 2
 
+    # ================================================================
+    # FASES DA VIDA — Renda mensal por fase
+    # ================================================================
+    phases = compute_life_phases(projections)
+    if phases:
+        row += 1
+        ws2.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+        c = ws2.cell(row, 1, "FASES DA VIDA — Renda mensal (real, em reais de hoje)")
+        c.font = Font(bold=True, size=12, color="FFFFFF", name="Aptos")
+        c.fill = navy
+        c.alignment = center
+        fill_range(ws2, row, 2, 5, navy)
+        row += 1
+
+        # Headers
+        headers = ["Período", "Títulos ativos", "Sem aporte", "Aporte médio", "Aporte mediano"]
+        for ci, h in enumerate(headers, 1):
+            c = ws2.cell(row, ci, h)
+            c.font = hdr_font
+            c.fill = purple_light
+            c.border = thin
+            c.alignment = right if ci > 2 else left
+        row += 1
+
+        scenario_keys = ["no_aporte_avg_ipca", "avg_aporte_avg_ipca", "median_aporte_avg_ipca"]
+        for idx, ph in enumerate(phases):
+            stripe = soft_gray if idx % 2 == 1 else None
+            period = f"{ph['start'].strftime('%m/%Y')}–{ph['end'].strftime('%m/%Y')}"
+            active_label = " + ".join(ph["active"])
+            vals = [period, active_label]
+            for key in scenario_keys:
+                inc = monthly_income_by_phase([ph], projections, key)[0]
+                vals.append(inc["real_monthly_net"])
+            fmts = [None, None, CURR, CURR, CURR]
+            for ci, (v, nf) in enumerate(zip(vals, fmts), 1):
+                c = ws2.cell(row, ci, v)
+                c.font = normal
+                c.border = thin
+                c.alignment = right if ci > 2 else left
+                if nf:
+                    c.number_format = nf
+                if stripe:
+                    c.fill = stripe
+            row += 1
+
+        # Footer note: explain real-terms
+        ws2.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+        c = ws2.cell(
+            row, 1,
+            "Valores em reais de hoje. Constantes ao longo de cada fase em termos reais; em termos nominais crescem com IPCA.",
+        )
+        c.font = muted
+        c.alignment = left
+        row += 2
+
+        # Second sub-table: nominal at phase boundaries for avg+avg
+        ws2.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+        c = ws2.cell(row, 1, "FASES DA VIDA — Nominal (cenário: aporte médio + IPCA médio)")
+        c.font = Font(bold=True, size=12, color="FFFFFF", name="Aptos")
+        c.fill = navy
+        c.alignment = center
+        fill_range(ws2, row, 2, 5, navy)
+        row += 1
+
+        for ci, h in enumerate(
+            ["Período", "Títulos ativos", "Mensal nominal (início)", "Mensal nominal (fim)"], 1
+        ):
+            c = ws2.cell(row, ci, h)
+            c.font = hdr_font
+            c.fill = purple_light
+            c.border = thin
+            c.alignment = right if ci > 2 else left
+        row += 1
+
+        avg_income = monthly_income_by_phase(phases, projections, "avg_aporte_avg_ipca")
+        for idx, (ph, inc) in enumerate(zip(phases, avg_income)):
+            stripe = soft_gray if idx % 2 == 1 else None
+            period = f"{ph['start'].strftime('%m/%Y')}–{ph['end'].strftime('%m/%Y')}"
+            active_label = " + ".join(ph["active"])
+            nominal_start = inflate_to_nominal(inc["real_monthly_net"], inc["ipca_yearly"], today, ph["start"])
+            nominal_end = inflate_to_nominal(inc["real_monthly_net"], inc["ipca_yearly"], today, ph["end"])
+            vals = [period, active_label, nominal_start, nominal_end]
+            fmts = [None, None, CURR, CURR]
+            for ci, (v, nf) in enumerate(zip(vals, fmts), 1):
+                c = ws2.cell(row, ci, v)
+                c.font = normal
+                c.border = thin
+                c.alignment = right if ci > 2 else left
+                if nf:
+                    c.number_format = nf
+                if stripe:
+                    c.fill = stripe
+            row += 1
+
+        row += 1
+
     # Save
     output_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "output.xlsx"
@@ -1237,6 +1491,8 @@ def main():
     print()
 
     print_projections(aporte_stats, ipca_history_stats, projections, bonds)
+
+    print_life_phases(projections)
 
     write_xlsx(bonds, ipca_rate, today, holidays,
                aporte_stats=aporte_stats,
