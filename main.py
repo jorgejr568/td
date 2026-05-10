@@ -714,6 +714,29 @@ def print_life_phases(projections):
         )
     print()
 
+    # Second nominal sub-table (median aporte + median IPCA)
+    print("=" * 130)
+    print("  FASES DA VIDA — Nominal estimado (cenário: aporte mediano + IPCA mediano)")
+    print("=" * 130)
+    print()
+    print(
+        f"  {'Período':<19} {'Meses':>6} {'Títulos ativos':<22} "
+        f"{'Mensal nom. (início)':>22} {'Mensal nom. (fim)':>22}"
+    )
+    print("  " + "-" * 118)
+
+    med_income = monthly_income_by_phase(phases, projections, "median_aporte_median_ipca")
+    for ph, inc in zip(phases, med_income):
+        active_label = short_phase_label(ph["active"])
+        period = f"{ph['start'].strftime('%m/%Y')}–{ph['end'].strftime('%m/%Y')}"
+        nominal_start = inflate_to_nominal(inc["real_monthly_net"], inc["ipca_yearly"], today, ph["start"])
+        nominal_end = inflate_to_nominal(inc["real_monthly_net"], inc["ipca_yearly"], today, ph["end"])
+        print(
+            f"  {period:<19} {ph['n_months']:>6} {active_label:<22} "
+            f"{fmt(nominal_start):>22} {fmt(nominal_end):>22}"
+        )
+    print()
+
 
 def write_xlsx(bonds, ipca_rate, today, holidays, aporte_stats, ipca_history_stats, projections):
     """Generate a styled output.xlsx with Detail and Summary sheets."""
@@ -1288,6 +1311,47 @@ def write_xlsx(bonds, ipca_rate, today, holidays, aporte_stats, ipca_history_sta
 
         avg_income = monthly_income_by_phase(phases, projections, "avg_aporte_avg_ipca")
         for idx, (ph, inc) in enumerate(zip(phases, avg_income)):
+            stripe = soft_gray if idx % 2 == 1 else None
+            period = f"{ph['start'].strftime('%m/%Y')}–{ph['end'].strftime('%m/%Y')}"
+            active_label = short_phase_label(ph["active"])
+            nominal_start = inflate_to_nominal(inc["real_monthly_net"], inc["ipca_yearly"], today, ph["start"])
+            nominal_end = inflate_to_nominal(inc["real_monthly_net"], inc["ipca_yearly"], today, ph["end"])
+            vals = [period, active_label, nominal_start, nominal_end]
+            fmts = [None, None, CURR, CURR]
+            for ci, (v, nf) in enumerate(zip(vals, fmts), 1):
+                c = ws2.cell(row, ci, v)
+                c.font = normal
+                c.border = thin
+                c.alignment = right if ci > 2 else left
+                if nf:
+                    c.number_format = nf
+                if stripe:
+                    c.fill = stripe
+            row += 1
+
+        row += 1
+
+        # Third sub-table: nominal at phase boundaries for median+median
+        ws2.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+        c = ws2.cell(row, 1, "FASES DA VIDA — Nominal (cenário: aporte mediano + IPCA mediano)")
+        c.font = Font(bold=True, size=12, color="FFFFFF", name="Aptos")
+        c.fill = navy
+        c.alignment = center
+        fill_range(ws2, row, 2, 5, navy)
+        row += 1
+
+        for ci, h in enumerate(
+            ["Período", "Títulos ativos", "Mensal nominal (início)", "Mensal nominal (fim)"], 1
+        ):
+            c = ws2.cell(row, ci, h)
+            c.font = hdr_font
+            c.fill = purple_light
+            c.border = thin
+            c.alignment = right if ci > 2 else left
+        row += 1
+
+        med_income = monthly_income_by_phase(phases, projections, "median_aporte_median_ipca")
+        for idx, (ph, inc) in enumerate(zip(phases, med_income)):
             stripe = soft_gray if idx % 2 == 1 else None
             period = f"{ph['start'].strftime('%m/%Y')}–{ph['end'].strftime('%m/%Y')}"
             active_label = short_phase_label(ph["active"])
