@@ -392,6 +392,64 @@ def renda_mais_payout(
     }
 
 
+def build_bond_projection(bond, today, aporte_avg, aporte_median, ipca_avg, ipca_median):
+    """Compute four projection scenarios per Renda+ bond.
+
+    Returns {'is_renda_mais', 'conversion_date', 'maturity_date', 'avg_spread',
+             'scenarios': {scenario_key: {real_value_at_conversion,
+                                          nominal_value_at_conversion,
+                                          total_invested_through_conversion,
+                                          payout: {...}}}}.
+    Non-Renda+ bonds return scenarios={}.
+    """
+    year = extract_renda_mais_year(bond["name"])
+    if year is None:
+        return {"is_renda_mais": False, "scenarios": {}}
+
+    conversion = renda_mais_conversion_date(year)
+    maturity = bond["maturity"]
+    avg_spr = average_spread(bond["purchases"])
+
+    n_future_months = max(
+        0, (conversion.year - today.year) * 12 + (conversion.month - today.month)
+    )
+
+    scenarios = {}
+    for ap_label, ap_value in [("avg_aporte", aporte_avg), ("median_aporte", aporte_median)]:
+        for ip_label, ip_value in [("avg_ipca", ipca_avg), ("median_ipca", ipca_median)]:
+            key = f"{ap_label}_{ip_label}"
+            real_vc = project_real_value_at_conversion(
+                bond["purchases"], conversion, today,
+                future_monthly_aporte=ap_value, avg_future_spread=avg_spr,
+            )
+            nominal_vc = inflate_to_nominal(real_vc, ip_value, today, conversion)
+            total_invested = bond["total_invested"] + ap_value * n_future_months
+            payout = renda_mais_payout(
+                real_value_at_conversion=real_vc,
+                total_invested=total_invested,
+                conversion_date=conversion,
+                maturity_date=maturity,
+                yearly_ipca_for_inflation=ip_value,
+                today=today,
+            )
+            scenarios[key] = {
+                "real_value_at_conversion": real_vc,
+                "nominal_value_at_conversion": nominal_vc,
+                "total_invested_through_conversion": total_invested,
+                "future_aporte_monthly": ap_value,
+                "ipca_yearly": ip_value,
+                "payout": payout,
+            }
+
+    return {
+        "is_renda_mais": True,
+        "conversion_date": conversion,
+        "maturity_date": maturity,
+        "avg_spread": avg_spr,
+        "scenarios": scenarios,
+    }
+
+
 def fmt(value):
     """Format a number as Brazilian currency string."""
     return f"R$ {value:>14,.2f}"

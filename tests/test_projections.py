@@ -232,3 +232,55 @@ class TestRendaMaisPayout:
             today=date(2025, 1, 15),
         )
         assert result["real_monthly_net"] == pytest.approx(result["real_monthly_gross"])
+
+
+from main import build_bond_projection
+
+
+class TestBuildBondProjection:
+    def test_returns_four_scenarios_for_renda_mais(self, sample_purchases):
+        bond = {
+            "name": "Tesouro Renda+ Aposentadoria Extra 2035",
+            "maturity": date(2054, 12, 15),
+            "purchases": sample_purchases,
+            "total_invested": 350.0,
+        }
+        result = build_bond_projection(
+            bond=bond,
+            today=date(2025, 1, 15),
+            aporte_avg=200.0,
+            aporte_median=150.0,
+            ipca_avg=0.05,
+            ipca_median=0.04,
+        )
+        assert result["is_renda_mais"] is True
+        assert result["conversion_date"] == date(2035, 1, 15)
+        assert set(result["scenarios"].keys()) == {
+            "avg_aporte_avg_ipca",
+            "avg_aporte_median_ipca",
+            "median_aporte_avg_ipca",
+            "median_aporte_median_ipca",
+        }
+        scen = result["scenarios"]["avg_aporte_avg_ipca"]
+        # higher aporte and higher IPCA -> larger nominal first payment
+        assert scen["real_value_at_conversion"] > 0
+        assert scen["nominal_value_at_conversion"] >= scen["real_value_at_conversion"]
+        assert scen["payout"]["n_months"] == 240
+        # Avg-aporte scenario must be > median-aporte scenario in real V_c.
+        assert (result["scenarios"]["avg_aporte_avg_ipca"]["real_value_at_conversion"]
+                > result["scenarios"]["median_aporte_avg_ipca"]["real_value_at_conversion"])
+
+    def test_returns_none_for_non_renda_mais(self, sample_purchases):
+        bond = {
+            "name": "Tesouro IPCA+ 2035",
+            "maturity": date(2035, 5, 15),
+            "purchases": sample_purchases,
+            "total_invested": 350.0,
+        }
+        result = build_bond_projection(
+            bond=bond, today=date(2025, 1, 15),
+            aporte_avg=200.0, aporte_median=150.0,
+            ipca_avg=0.05, ipca_median=0.04,
+        )
+        assert result["is_renda_mais"] is False
+        assert result["scenarios"] == {}
