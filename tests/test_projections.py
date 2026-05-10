@@ -238,7 +238,7 @@ from main import build_bond_projection
 
 
 class TestBuildBondProjection:
-    def test_returns_four_scenarios_for_renda_mais(self, sample_purchases):
+    def test_returns_six_scenarios_for_renda_mais(self, sample_purchases):
         bond = {
             "name": "Tesouro Renda+ Aposentadoria Extra 2035",
             "maturity": date(2054, 12, 15),
@@ -254,6 +254,8 @@ class TestBuildBondProjection:
         assert result["is_renda_mais"] is True
         assert result["conversion_date"] == date(2035, 1, 15)
         assert set(result["scenarios"].keys()) == {
+            "no_aporte_avg_ipca",
+            "no_aporte_median_ipca",
             "avg_aporte_avg_ipca",
             "avg_aporte_median_ipca",
             "median_aporte_avg_ipca",
@@ -270,6 +272,15 @@ class TestBuildBondProjection:
         assert scen["real_value_at_conversion"] > 0
         assert scen["nominal_value_at_conversion"] >= scen["real_value_at_conversion"]
         assert scen["payout"]["n_months"] == 240
+        # no_aporte baseline must be smaller than avg_aporte (assuming positive aporte)
+        no_avg = result["scenarios"]["no_aporte_avg_ipca"]["real_value_at_conversion"]
+        yes_avg = result["scenarios"]["avg_aporte_avg_ipca"]["real_value_at_conversion"]
+        assert no_avg < yes_avg
+        # total_invested for no_aporte equals bond's existing total (no future aportes added)
+        assert (
+            result["scenarios"]["no_aporte_avg_ipca"]["total_invested_through_conversion"]
+            == pytest.approx(bond["total_invested"])
+        )
 
     def test_returns_none_for_non_renda_mais(self, sample_purchases):
         bond = {

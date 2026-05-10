@@ -393,10 +393,12 @@ def renda_mais_payout(
 
 
 def build_bond_projection(bond, today, ipca_avg, ipca_median):
-    """Compute four projection scenarios per Renda+ bond.
+    """Compute six projection scenarios per Renda+ bond.
 
     Aporte avg/median are derived from THIS bond's own purchase history, so
-    each bond's projections reflect its individual contribution cadence.
+    each bond's projections reflect its individual contribution cadence. A
+    'no_aporte' baseline is also produced where the existing balance just
+    grows at each purchase's contracted spread (zero future contributions).
 
     Returns {'is_renda_mais', 'conversion_date', 'maturity_date', 'avg_spread',
              'aporte_stats': {...},
@@ -422,9 +424,16 @@ def build_bond_projection(bond, today, ipca_avg, ipca_median):
         0, (conversion.year - today.year) * 12 + (conversion.month - today.month)
     )
 
+    aporte_options = [
+        ("no_aporte", 0.0),
+        ("avg_aporte", aporte_avg),
+        ("median_aporte", aporte_median),
+    ]
+    ipca_options = [("avg_ipca", ipca_avg), ("median_ipca", ipca_median)]
+
     scenarios = {}
-    for ap_label, ap_value in [("avg_aporte", aporte_avg), ("median_aporte", aporte_median)]:
-        for ip_label, ip_value in [("avg_ipca", ipca_avg), ("median_ipca", ipca_median)]:
+    for ap_label, ap_value in aporte_options:
+        for ip_label, ip_value in ipca_options:
             key = f"{ap_label}_{ip_label}"
             real_vc = project_real_value_at_conversion(
                 bond["purchases"], conversion, today,
@@ -504,6 +513,8 @@ def print_projections(aporte_stats, ipca_history_stats, projections, bonds):
         )
         print("  " + "-" * 122)
         for key, label in [
+            ("no_aporte_avg_ipca", "no aporte + avg IPCA"),
+            ("no_aporte_median_ipca", "no aporte + median IPCA"),
             ("avg_aporte_avg_ipca", "avg aporte + avg IPCA"),
             ("avg_aporte_median_ipca", "avg aporte + median IPCA"),
             ("median_aporte_avg_ipca", "median aporte + avg IPCA"),
@@ -931,6 +942,8 @@ def write_xlsx(bonds, ipca_rate, today, holidays, aporte_stats, ipca_history_sta
     row += 2
 
     scenario_labels = {
+        "no_aporte_avg_ipca": "Sem aporte + IPCA médio",
+        "no_aporte_median_ipca": "Sem aporte + IPCA mediano",
         "avg_aporte_avg_ipca": "Aporte médio + IPCA médio",
         "avg_aporte_median_ipca": "Aporte médio + IPCA mediano",
         "median_aporte_avg_ipca": "Aporte mediano + IPCA médio",
@@ -978,7 +991,8 @@ def write_xlsx(bonds, ipca_rate, today, holidays, aporte_stats, ipca_history_sta
         row += 1
 
         for idx, key in enumerate(
-            ["avg_aporte_avg_ipca", "avg_aporte_median_ipca",
+            ["no_aporte_avg_ipca", "no_aporte_median_ipca",
+             "avg_aporte_avg_ipca", "avg_aporte_median_ipca",
              "median_aporte_avg_ipca", "median_aporte_median_ipca"]
         ):
             scen = proj["scenarios"][key]

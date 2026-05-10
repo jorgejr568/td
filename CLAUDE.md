@@ -51,7 +51,7 @@ The Resumo tab and console output include a stats / projection section computed 
 4. **Nominal at conversion** — real value × `(1 + IPCA_avg_or_median)^years_to_conversion`.
 5. **Monthly payout** — Renda+ pays 240 monthly amortizations (1/240 of VNA each); in real terms ≈ `V_c / 240`. IR = 15% on the gain portion (gain fraction = `(V_c - total_invested) / V_c`). B3 fee assumed 0% (held to conversion, payment ≤ 6 minimum wages).
 
-Four scenarios are produced per bond: every combination of {avg, median} aporte × {avg, median} IPCA. Output goes to the Resumo tab of `output.xlsx`, the terminal, and `output.txt` (via the existing Tee shim).
+Six scenarios are produced per bond: {no, avg, median} aporte × {avg, median} IPCA. The "no aporte" rows show the baseline where you stop contributing today and just let the existing balance grow at each purchase's contracted spread. Output goes to the Resumo tab of `output.xlsx`, the terminal, and `output.txt` (via the existing Tee shim).
 
 ## Report Format (reports/*.xlsx)
 
